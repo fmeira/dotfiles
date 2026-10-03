@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=kanshi
+Comment=Dynamic output configuration for Wayland
+Exec=kanshi
+X-GNOME-Autostart-enabled=true
+X-UWSM-Autostart-Priority=20

@@ -1,0 +1,50 @@
+# Dynamic monitor layouts for Hyprland (home / work / laptop).
+# Match by make/model/serial so connector names (DP-7 vs DP-4) can change.
+# Each profile must list exactly the connected outputs.
+
+# --- Shared output defaults ---
+output "Dell Inc. DELL U2421E DH3QS83" {
+	mode 1920x1200@59.95Hz
+	scale 1
+	alias $HOME_LEFT
+}
+
+output "Dell Inc. DELL U2421E 8LNC5H3" {
+	mode 1920x1200@59.95Hz
+	scale 1
+	alias $HOME_RIGHT
+}
+
+output "Lenovo Group Limited P40w-20 V90E1NK8" {
+	mode 5120x2160@60Hz
+	scale 1
+	alias $WORK_EXT
+}
+
+output eDP-1 {
+	mode 3840x2400@60.02Hz
+	scale 1.5
+	alias $LAPTOP
+}
+
+# Home: both Dells above the laptop (centered under the pair)
+#   [LEFT][RIGHT]
+#      [LAPTOP]
+profile home {
+	output $HOME_LEFT  enable position 0,0
+	output $HOME_RIGHT enable position 1920,0
+	output $LAPTOP     enable position 960,1200
+}
+
+# Work: ultrawide above laptop (centered under it)
+#   [======== P40w-20 5120x2160 ========]
+#            [LAPTOP 1920x1200]
+profile work {
+	output $WORK_EXT enable position 0,0
+	output $LAPTOP   enable position 1600,2160
+}
+
+# Undocked
+profile laptop {
+	output $LAPTOP enable position 0,0
+}

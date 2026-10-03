@@ -1,0 +1,11 @@
+# secrets and generated state
+**/.env
+**/*secret*
+**/*credentials*
+fish_variables
+*.rdp
+*.log
+
+# app data and binaries
+.local/bin/pamcli
+.local/bin/ror

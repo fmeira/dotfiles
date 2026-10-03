@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Switch the Hyprland dock layout. Usage: hypr-place home|work
+set -euo pipefail
+
+site="${1:-}"
+case "$site" in
+  home)
+    monitor2="HOME_LEFT"
+    laptop_pos="960x1200"
+    ;;
+  work)
+    monitor2="WORK_EXT"
+    laptop_pos="1600x2160"
+    ;;
+  *)
+    echo "usage: hypr-place home|work" >&2
+    exit 1
+    ;;
+esac
+
+cfg="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/config"
+vars="$cfg/variables.lua"
+mons="$cfg/monitors.lua"
+
+python3 - "$vars" "$mons" "$monitor2" "$laptop_pos" << 'PY'
+import pathlib, sys
+vars_path, mons_path, monitor2, laptop_pos = sys.argv[1:]
+
+vars_file = pathlib.Path(vars_path)
+lines = vars_file.read_text().splitlines(keepends=True)
+found = False
+for i, line in enumerate(lines):
+    if line.startswith("MONITOR2 = "):
+        lines[i] = f"MONITOR2 = {monitor2}\n"
+        found = True
+        break
+if not found:
+    sys.exit("MONITOR2 assignment not found in variables.lua")
+vars_file.write_text("".join(lines))
+
+mons_file = pathlib.Path(mons_path)
+text = mons_file.read_text()
+marker = 'output    = "eDP-1"'
+start = text.find(marker)
+if start < 0:
+    sys.exit("eDP-1 monitor block not found in monitors.lua")
+end = text.find("})", start)
+block = text[start:end]
+old = 'position  = "'
+pos = block.find(old)
+if pos < 0:
+    sys.exit("laptop position not found in monitors.lua")
+q1 = pos + len(old)
+q2 = block.find('"', q1)
+block = block[:q1] + laptop_pos + block[q2:]
+mons_file.write_text(text[:start] + block + text[end:])
+PY
+
+hyprctl reload >/dev/null
+echo "hypr-place: $site (workspaces 4-6 on $monitor2, laptop at $laptop_pos)"
