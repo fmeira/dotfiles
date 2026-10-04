@@ -13,6 +13,8 @@ hl.config({
         middle_click_paste = false,
         enable_swallow = true,
         swallow_regex = "(kitty|ghostty|[Kk]onsole|Alacritty|gnome-terminal|xfce[0-9]?-terminal)",
+        -- Do not pin the RDP screen to whichever monitor the terminal is on.
+        swallow_exception_regex = "Xephyr",
         vrr = 3,
     },
     render = {
@@ -21,6 +23,8 @@ hl.config({
         -- non_shader_cm = 0,
     },
     xwayland = {
+        -- RemoteApp only stays on screen with this set. Turning it off made
+        -- the server close the session before a window appeared.
         force_zero_scaling = true
     },
 })

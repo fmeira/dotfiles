@@ -12,3 +12,7 @@ end
 #function fish_greeting
 #    # smth smth
 #end
+
+function dotfiles
+    git --git-dir=$HOME/dotfiles/.git --work-tree=$HOME $argv
+end
