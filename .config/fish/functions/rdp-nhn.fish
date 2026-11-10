@@ -44,12 +44,53 @@
 #    return $code
 #end
 
-function rdp-nhn
+function rdp-nhn-x11
     set -l rdp $argv[1]
-    if test -z "$rdp"; or not test -f "$rdp"
-        echo "usage: rdp-nhn file.rdp" >&2
+    # One X screen, so this is the real window size. 1680x1050 fits the
+    # laptop once monitors.sh has scaled it to 1920x1200.
+    set -l width 1680
+    set -l height 1050
+    set -l scale 100
+
+    set -l distrobox $HOME/.local/bin/distrobox
+    if not test -x $distrobox
+        echo "rdp-nhn: distrobox is missing from ~/.local/bin" >&2
         return 1
     end
+
+    # Drop connection type too. Autodetect turns on the graphics pipeline,
+    # and that pipeline deletes the RemoteApp window on this client.
+    grep -vE "screen|width|height|geometry|smart sizing|desktopwidth|desktopheight|keyboard|winposstr|connection type" -- "$rdp" > /tmp/temp_target.rdp
+    echo "desktopwidth:i:$width" >> /tmp/temp_target.rdp
+    echo "desktopheight:i:$height" >> /tmp/temp_target.rdp
+    echo "winposstr:s:0,1,0,0,$width,$height" >> /tmp/temp_target.rdp
+    echo "smart sizing:i:1" >> /tmp/temp_target.rdp
+    echo "use multimon:i:0" >> /tmp/temp_target.rdp
+    echo "desktopscalefactor:i:$scale" >> /tmp/temp_target.rdp
+
+    if set -q FREERDP_GFX_CAPS
+        set -e FREERDP_GFX_CAPS
+    end
+
+    # Debian FreeRDP 2 on this X session. FreeRDP 3 negotiated graphics,
+    # then destroyed the window and CyberArk logged the session off.
+    # /p: is an empty password. Do not pass /disp: in this version that enables it.
+    echo "rdp-nhn: X11 session, Debian FreeRDP 2, $width x $height"
+    : >/tmp/rdp-nhn.log
+    $distrobox enter rdp-debian -- env DISPLAY=$DISPLAY LIBVA_DRIVER_NAME=none \
+        xfreerdp /tmp/temp_target.rdp /p: /gdi:sw /network:lan /relax-order-checks /kbd:0x0000040F /size:$width"x"$height /scale:$scale /scale-desktop:$scale /smart-sizing /wm-class:xfreerdp /t:"Splunk-RDP" \
+        2>&1 | tee -a /tmp/rdp-nhn.log
+    set -l code $pipestatus[1]
+    rm -f /tmp/temp_target.rdp
+    rm -f -- "$rdp"
+    if test $code -ne 0
+        echo "RDP exited with status $code. Log: /tmp/rdp-nhn.log" >&2
+    end
+    return $code
+end
+
+function rdp-nhn-xephyr
+    set -l rdp $argv[1]
 
     set -l xephyr_bin (command -v Xephyr)
     if test -z "$xephyr_bin"; and test -x $HOME/.local/bin/Xephyr
@@ -60,8 +101,13 @@ function rdp-nhn
         return 1
     end
 
+    if not command -q xfreerdp3
+        echo "rdp-nhn: xfreerdp3 is missing" >&2
+        return 1
+    end
+
     # Laptop is scale 2 and X11 is drawn 1:1, so this appears at about
-    # 1800x1050. Same screen at home and at work. xfreerdp talks only to Xephyr.
+    # 1800x1050. Same screen at home and at work. FreeRDP talks only to Xephyr.
     set -l width 3600
     set -l height 2100
     set -l scale 100
@@ -82,7 +128,7 @@ function rdp-nhn
     systemd-run --user --collect --no-block --unit=$unit \
         --property=StandardOutput=append:/tmp/xephyr-rdp.log \
         --property=StandardError=append:/tmp/xephyr-rdp.log \
-        $xephyr_bin :$display_num -screen $width"x"$height -no-host-grab -ac -br -title Splunk-RDP
+        $xephyr_bin :$display_num -screen $width"x"$height -no-host-grab -ac -br -noreset -title Splunk-RDP
 
     set -l xephyr_pid ""
     set -l ready 0
@@ -104,6 +150,14 @@ function rdp-nhn
     end
     sleep 0.2
 
+    # Xephyr has no window manager. Without _NET_WM_STATE in _NET_SUPPORTED,
+    # FreeRDP sets a window property with atom 0 and the X server aborts it.
+    if not $HOME/.local/bin/rdp-xephyr-hints :$display_num
+        echo "rdp-nhn: could not publish window hints on Xephyr" >&2
+        systemctl --user stop $unit.service 2>/dev/null
+        return 1
+    end
+
     # FreeRDP's clipboard is the Xephyr one. This copies text both ways
     # with the desktop clipboard. Started before DISPLAY changes, so it
     # still sees the Wayland clipboard.
@@ -123,18 +177,19 @@ function rdp-nhn
     echo "use multimon:i:0" >> /tmp/temp_target.rdp
     echo "desktopscalefactor:i:$scale" >> /tmp/temp_target.rdp
 
-    set -lx DISPLAY :$display_num
-    set -lx LIBVA_DRIVER_NAME none
     if set -q FREERDP_GFX_CAPS
         set -e FREERDP_GFX_CAPS
     end
 
-    # /p: the token has no password. Without this, xfreerdp waits at
-    # "Password:" and the Xephyr window covers the terminal.
-    # -disp: do not tell the server about the second monitor, or it
-    # repositions the window off-screen after you move it.
-    xfreerdp3 /tmp/temp_target.rdp /p /gdi:sw /network:lan /relax-order-checks /kbd:layout:0x0000040F /size:$width"x"$height /scale:$scale /scale-desktop:$scale /smart-sizing -disp /t:"Splunk-RDP"
-    set -l code $status
+    # Host FreeRDP 3 inside Xephyr. This is the Hyprland setup that painted
+    # the full page on the laptop. /p skips the empty password. -disp keeps
+    # the server from hearing about the other monitors.
+    echo "rdp-nhn: Hyprland, Xephyr, xfreerdp3 $width x $height"
+    : >/tmp/rdp-nhn.log
+    env DISPLAY=:$display_num LIBVA_DRIVER_NAME=none \
+        xfreerdp3 /tmp/temp_target.rdp /p /gdi:sw /network:lan /relax-order-checks /kbd:layout:0x0000040F /size:$width"x"$height /scale:$scale /scale-desktop:$scale /smart-sizing -disp /t:"Splunk-RDP" \
+        2>&1 | tee -a /tmp/rdp-nhn.log
+    set -l code $pipestatus[1]
 
     if test $clip_pid -gt 0
         kill $clip_pid 2>/dev/null
@@ -142,6 +197,52 @@ function rdp-nhn
     systemctl --user stop $unit.service 2>/dev/null
     kill $xephyr_pid 2>/dev/null
     rm -f /tmp/temp_target.rdp
+    # The portal token is single use. A failed session has already spent it.
     rm -f -- "$rdp"
+    if test $code -ne 0
+        echo "RDP exited with status $code. Log: /tmp/rdp-nhn.log" >&2
+    end
     return $code
+end
+
+function rdp-nhn
+    set -l mode auto
+    set -l rdp ""
+    if test (count $argv) -ge 1
+        switch $argv[1]
+            case hypr --hypr
+                set mode hypr
+                set rdp $argv[2]
+            case i3 --i3 x11 --x11
+                set mode i3
+                set rdp $argv[2]
+            case '*'
+                set rdp $argv[1]
+        end
+    end
+    if test -z "$rdp"; or not test -f "$rdp"
+        echo "usage: rdp-nhn [hypr|i3] file.rdp" >&2
+        echo "  hypr  Xephyr on the laptop, for Hyprland" >&2
+        echo "  i3    direct X11, for an i3 session" >&2
+        return 1
+    end
+
+    switch $mode
+        case hypr
+            rdp-nhn-xephyr $rdp
+        case i3
+            rdp-nhn-x11 $rdp
+        case '*'
+            # i3 has DISPLAY and no Wayland display. Hyprland sets both.
+            if test "$XDG_SESSION_TYPE" = x11
+                or begin
+                    set -q DISPLAY
+                    and not set -q WAYLAND_DISPLAY
+                end
+                rdp-nhn-x11 $rdp
+            else
+                rdp-nhn-xephyr $rdp
+            end
+    end
+    return $status
 end

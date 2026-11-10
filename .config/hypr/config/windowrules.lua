@@ -51,32 +51,36 @@ hl.window_rule({
 -- window is relocated while RemoteApp is still starting. Drag it onto the
 -- laptop after it is up; the scale-1 externals never take input.
 -- Marker windows are 20x20 and were taking keyboard focus away from Splunk.
-hl.window_rule({
-    match = {
-        class = "^RAIL:.+",
-        title = "^(RemoteApp Marker Window)?$",
-    },
-    float    = true,
-    no_focus = true,
-})
-hl.window_rule({
-    match = { class = "^RAIL:.+" },
-    float           = true,
-    persistent_size = false,
-    focus_on_activate = true,
-})
-hl.window_rule({ match = { class = "^(xfreerdp3?|Xfreerdp)$" }, float = true })
-hl.window_rule({ match = { title = "^(FreeRDP:.*|Splunk-RDP)$" }, float = true })
--- The RemoteApp runs inside this window, on Xephyr's own X server.
--- Always the laptop, at home and at work. Dragging it onto another
--- screen blanks the picture.
-hl.window_rule({
-    match           = { class = "^Xephyr$", title = "^Splunk-RDP$" },
-    float           = true,
-    persistent_size = false,
-    monitor         = MONITOR1,
-    center          = true,
-})
+--hl.window_rule({
+--   match = {
+--        class = "^RAIL:.+",
+--        title = "^(RemoteApp Marker Window)?$",
+--    },
+--    float    = true,
+--    no_focus = true,
+--})
+--hl.window_rule({
+--    match = { class = "^RAIL:.+" },
+--    float           = true,
+--    persistent_size = false,
+--    focus_on_activate = true,
+--})
+--hl.window_rule({ match = { class = "^(xfreerdp3?|Xfreerdp)$" }, float = true })
+--hl.window_rule({ match = { title = "^(FreeRDP:.*|Splunk-RDP)$" }, 
+--    float = false,
+--    --size = { 1280, 720 },
+--    center = true,
+--})
+---- The RemoteApp runs inside this window, on Xephyr's own X server.
+---- Always the laptop, at home and at work. Dragging it onto another
+---- screen blanks the picture.
+--hl.window_rule({
+--    match           = { class = "^Xephyr$", title = "^Splunk-RDP$" },
+--    float           = true,
+--    persistent_size = false,
+--    monitor         = MONITOR1,
+--    center          = true,
+--})
 hl.window_rule({ match = { class = "^(.*\\.exe)$", float = true }, monitor = PRIMARY_MONITOR, center = true, fullscreen_state = 0 })
 hl.window_rule({ match = { class = "^(.*[Ll]auncher.*)$" }, float = true, monitor = PRIMARY_MONITOR })
 hl.window_rule({ match = { class = "^(vesktop|discord)$" }, monitor = PRIMARY_MONITOR })
